@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Наши праздники</title>
+  <meta name="description" content="Календарь дней рождения, годовщин и других семейных праздников с напоминаниями">
+  <meta name="theme-color" content="#b9472a">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Праздники">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Наши праздники</h1>
+    <button id="btnSettings" class="icon-btn" aria-label="Настройки">⚙️</button>
+  </header>
+
+  <main>
+    <div id="notifBanner" class="banner" hidden>
+      <span>🔔 Включить напоминания о праздниках?</span>
+      <button id="btnBannerEnable" class="btn small">Включить</button>
+    </div>
+
+    <section id="soon" class="soon" hidden></section>
+
+    <section class="calendar" aria-label="Календарь">
+      <div class="month-nav">
+        <button id="btnPrev" class="nav-btn" aria-label="Предыдущий месяц">‹</button>
+        <button id="btnTitle" class="month-title" aria-label="Перейти к сегодняшнему месяцу">
+          <span id="monthName"></span>
+          <span id="yearName" class="year"></span>
+        </button>
+        <button id="btnNext" class="nav-btn" aria-label="Следующий месяц">›</button>
+      </div>
+      <button id="btnToday" class="today-link" hidden>↩ Вернуться к сегодня</button>
+      <div class="weekdays" id="weekdays"></div>
+      <div class="grid" id="grid"></div>
+    </section>
+
+    <section class="month-list">
+      <h2 id="listTitle"></h2>
+      <div id="list"></div>
+    </section>
+  </main>
+
+  <button id="btnAdd" class="fab">＋ Добавить</button>
+
+  <!-- Добавление / изменение -->
+  <dialog id="editDlg" class="sheet">
+    <form id="editForm" method="dialog" autocomplete="off">
+      <div class="sheet-head">
+        <h2 id="editTitle">Новый праздник</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Закрыть">✕</button>
+      </div>
+
+      <label class="field">
+        <span>Кто / что</span>
+        <input id="fName" required maxlength="80" placeholder="Например: Маша, внучка">
+      </label>
+
+      <div class="field">
+        <span>Какой праздник</span>
+        <div id="fTypes" class="types"></div>
+      </div>
+
+      <div class="field">
+        <span>Дата</span>
+        <div class="date-row">
+          <select id="fDay" aria-label="День"></select>
+          <select id="fMonth" aria-label="Месяц"></select>
+        </div>
+      </div>
+
+      <label class="field">
+        <span id="fYearLabel">Год рождения <small>(необязательно — чтобы считать, сколько лет)</small></span>
+        <input id="fYear" type="number" inputmode="numeric" min="1900" max="2100" placeholder="например, 1961">
+      </label>
+
+      <div class="field">
+        <span>Напомнить</span>
+        <div class="checks" id="fRemind">
+          <label><input type="checkbox" value="0"> в сам день</label>
+          <label><input type="checkbox" value="1"> за день</label>
+          <label><input type="checkbox" value="3"> за 3 дня</label>
+          <label><input type="checkbox" value="7"> за неделю</label>
+        </div>
+      </div>
+
+      <label class="field">
+        <span>Заметка <small>(необязательно)</small></span>
+        <textarea id="fNote" rows="2" maxlength="300" placeholder="Что подарить, телефон…"></textarea>
+      </label>
+
+      <div class="sheet-actions">
+        <button type="submit" class="btn primary big">Сохранить</button>
+        <button type="button" id="btnDelete" class="btn danger" hidden>Удалить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Настройки -->
+  <dialog id="setDlg" class="sheet">
+    <div class="sheet-head">
+      <h2>Настройки</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Закрыть">✕</button>
+    </div>
+
+    <div class="field">
+      <span>Размер текста</span>
+      <div class="seg" id="fontSeg">
+        <button data-scale="1">А</button>
+        <button data-scale="1.15" style="font-size:1.15em">А</button>
+        <button data-scale="1.3" style="font-size:1.3em">А</button>
+        <button data-scale="1.5" style="font-size:1.5em">А</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <span>Напоминания</span>
+      <p id="notifStatus" class="muted"></p>
+      <div class="row">
+        <button id="btnNotifEnable" class="btn">Включить уведомления</button>
+        <button id="btnNotifTest" class="btn">Проверить</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <span>Резервная копия</span>
+      <div class="row">
+        <button id="btnExport" class="btn">Сохранить в файл</button>
+        <button id="btnImport" class="btn">Загрузить из файла</button>
+        <input id="importFile" type="file" accept=".json,application/json" hidden>
+      </div>
+    </div>
+
+    <details class="field tech">
+      <summary>Синхронизация и push (для Даниила)</summary>
+      <p class="muted">Приватный репозиторий для данных, fine-grained токен с доступом Contents: Read and write только к нему.</p>
+      <label class="field"><span>Репозиторий (owner/repo)</span><input id="gRepo" placeholder="danya-bit0505/prazdniki-data"></label>
+      <label class="field"><span>Токен</span><input id="gToken" type="password" placeholder="github_pat_…"></label>
+      <label class="field"><span>VAPID public key</span><input id="gVapid" placeholder="BN…"></label>
+      <div class="row">
+        <button id="btnSaveSync" class="btn">Сохранить</button>
+        <button id="btnSyncNow" class="btn">Синхронизировать</button>
+        <button id="btnPush" class="btn">Подписаться на push</button>
+      </div>
+      <p id="syncStatus" class="muted"></p>
+    </details>
+
+    <p class="muted version">Наши праздники · <span id="ver"></span></p>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/core.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
