@@ -228,3 +228,15 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   :root { font-size: calc(17px * var(--scale)); }
   .nav-btn { width: 52px; height: 52px; }
 }
+
+/* ---- подсказки про уведомления ---- */
+.advice { display: block; }
+.advice-title { font-weight: 700; font-size: 1.05rem; margin-bottom: 6px; }
+.advice ol { margin: 6px 0 10px; padding-left: 1.4em; }
+.advice li { margin: 6px 0; }
+.advice .row { margin-top: 8px; }
+.advice a.btn { display: inline-flex; align-items: center; text-decoration: none; color: inherit; }
+.advice a.btn.primary { color: var(--accent-ink); }
+.banner.advice.warn { background: #fff4cc; border: 2px solid #e0b000; }
+#notifAdvice.advice { background: var(--card); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+#notifAdvice.advice.warn { background: #fff4cc; border: 2px solid #e0b000; }
