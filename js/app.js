@@ -2,10 +2,9 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.0.0';
+  const APP_VERSION = '1.1.0';
   const LS_EVENTS = 'prazdniki.events';
   const LS_SETTINGS = 'prazdniki.settings';
-  const LS_BANNER = 'prazdniki.bannerHidden';
   const C = window.Core;
   const $ = s => document.querySelector(s);
 
@@ -282,46 +281,174 @@
   }
 
   // ---------- уведомления ----------
+  const UA = navigator.userAgent;
   const hasNotif = () => 'Notification' in window && 'serviceWorker' in navigator;
   const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-  const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isIOS = () => /iphone|ipad|ipod/i.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = () => /Android/i.test(UA);
+  let installPrompt = null;
 
-  function updateNotifUI() {
-    const st = $('#notifStatus');
-    const en = $('#btnNotifEnable'), test = $('#btnNotifTest');
-    const banner = $('#notifBanner');
-    banner.hidden = true;
+  // Встроенные браузеры мессенджеров и соцсетей: уведомлений и установки там нет
+  const IN_APP = [
+    [/WhatsApp/i, 'WhatsApp'],
+    [/VKAndroidApp|VKClient|vkclient|com\.vkontakte/i, 'ВКонтакте'],
+    [/OKApp|OdnoklassnikiApp|ru\.ok\.android/i, 'Одноклассников'],
+    [/Viber/i, 'Viber'],
+    [/Instagram/i, 'Instagram'],
+    [/FBAN|FBAV|FB_IAB/i, 'Facebook'],
+    [/MailRuApp|com\.my\.mail/i, 'приложения Почты Mail'],
+    [/YaApp_|YaSearchBrowser|YandexSearch/i, 'приложения Яндекс'],
+    [/Line\//i, 'Line'],
+  ];
+
+  // null — обычный браузер; '' — встроенный, но непонятно чей; иначе — название
+  function inAppName() {
+    if (window.TelegramWebviewProxy || window.TelegramWebview || /Telegram/i.test(UA)) return 'Telegram';
+    for (const [re, name] of IN_APP) if (re.test(UA)) return name;
+    if (isAndroid() && /; wv\)/.test(UA)) return '';
+    if (isIOS() && !isStandalone() && !/Safari\//.test(UA)) return '';
+    return null;
+  }
+
+  const chromeIntent = () =>
+    `intent://${location.host}${location.pathname}#Intent;scheme=https;package=com.android.chrome;` +
+    `S.browser_fallback_url=${encodeURIComponent(location.href.split('#')[0])};end`;
+
+  async function copyLink() {
+    const url = location.href.split('#')[0];
+    let ok = false;
+    try { await navigator.clipboard.writeText(url); ok = true; } catch (e) { /* ниже запасной способ */ }
+    if (!ok) {
+      const ta = document.createElement('textarea');
+      ta.value = url; ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta); ta.select();
+      try { ok = document.execCommand('copy'); } catch (e) { /* ignore */ }
+      ta.remove();
+    }
+    toast(ok ? 'Ссылка скопирована. Вставьте её в адресную строку Chrome' : url, 5000);
+  }
+
+  async function install() {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const r = await installPrompt.userChoice.catch(() => null);
+    installPrompt = null;
+    if (r && r.outcome === 'accepted') toast('Значок «Праздники» появится на экране телефона', 4000);
+    updateNotifUI();
+  }
+
+  function deniedSteps() {
+    if (isIOS()) return [
+      'Откройте «Настройки» телефона → «Уведомления».',
+      'Найдите «Праздники» и включите «Допуск уведомлений».',
+    ];
+    return [
+      isStandalone()
+        ? 'Зажмите пальцем значок «Праздники» на экране телефона → «О приложении» (или значок ⓘ) → «Уведомления» → включите.'
+        : 'Нажмите значок слева от адреса сайта вверху → «Разрешения» (или «Настройки сайта») → «Уведомления» → «Разрешить».',
+      'Если там уже включено: «Настройки» телефона → «Приложения» → Chrome → «Уведомления» → включите.',
+      'Закройте и снова откройте праздники.',
+    ];
+  }
+
+  // Что посоветовать прямо сейчас. Без проблем — null.
+  function advice() {
+    const app = inAppName();
+    const copy = { label: '📋 Скопировать ссылку', run: copyLink };
+    const openChrome = { label: '🌐 Открыть в Chrome', href: chromeIntent(), primary: true };
+    if (app !== null) {
+      const title = `⚠️ Праздники открыты внутри ${app || 'другой программы'} — здесь напоминания не работают`;
+      return isIOS()
+        ? { warn: true, title, actions: [copy], steps: [
+            'Нажмите «···» или значок компаса и выберите «Открыть в Safari».',
+            'В Safari нажмите «Поделиться» (квадрат со стрелкой) → «На экран „Домой“».',
+            'Дальше открывайте праздники значком на экране.',
+          ] }
+        : { warn: true, title, actions: [openChrome, copy], steps: [
+            'Нажмите кнопку «Открыть в Chrome».',
+            'Если не открылось: нажмите ⋮ вверху справа → «Открыть в браузере» (или «Открыть в Chrome»).',
+          ] };
+    }
+    if (isIOS() && !isStandalone()) {
+      return { warn: true, title: '📲 На iPhone напоминания работают только со значка на экране', actions: [copy], steps: [
+        'Откройте этот сайт в Safari.',
+        'Нажмите «Поделиться» (квадрат со стрелкой) → «На экран „Домой“».',
+        'Откройте праздники этим значком и включите напоминания.',
+      ] };
+    }
     if (!hasNotif()) {
-      st.textContent = isIOS() && !isStandalone()
-        ? 'На iPhone сначала нажмите «Поделиться» → «На экран „Домой“» и откройте приложение оттуда.'
-        : 'Этот браузер не умеет показывать уведомления.';
-      en.hidden = true; test.hidden = true;
-      return;
+      return isAndroid()
+        ? { warn: true, title: '⚠️ Этот браузер не умеет показывать напоминания', actions: [openChrome, copy],
+            steps: ['Нажмите «Открыть в Chrome» и пользуйтесь праздниками там.'] }
+        : { warn: true, title: '⚠️ Этот браузер не умеет показывать напоминания', actions: [copy],
+            steps: ['Откройте сайт в Chrome или Safari.'] };
     }
     const p = Notification.permission;
-    en.hidden = p === 'granted';
-    test.hidden = p !== 'granted';
-    if (p === 'granted') {
-      st.textContent = settings.pushOn
-        ? 'Включены. Напоминания приходят каждое утро, даже если приложение закрыто.'
-        : 'Включены. Напоминания приходят, когда приложение открывают, и время от времени в фоне.';
-    } else if (p === 'denied') {
-      st.textContent = 'Уведомления запрещены. Разрешите их в настройках телефона для этого приложения.';
-      en.hidden = true;
-    } else {
-      st.textContent = 'Выключены.';
-      if (live().length && !load(LS_BANNER, false)) banner.hidden = false;
+    if (p === 'denied') return { warn: true, title: '🔕 Напоминания запрещены в телефоне', steps: deniedSteps(), dismiss: 'denied' };
+    if (p === 'default') return { title: '🔔 Включить напоминания о праздниках?', needEvents: true,
+      actions: [{ label: 'Включить', run: enableNotifications, primary: true }] };
+    if (installPrompt && !isStandalone()) return { title: '📲 Поставьте значок на экран телефона — так напоминания приходят надёжнее',
+      actions: [{ label: 'Установить', run: install, primary: true }], dismiss: 'install' };
+    return null;
+  }
+
+  const LS_HIDDEN = 'prazdniki.adviceHidden';
+  function hideAdvice(key) { const h = load(LS_HIDDEN, {}); h[key] = true; store(LS_HIDDEN, h); }
+
+  function renderAdvice(box, a, inBanner) {
+    box.className = (inBanner ? 'banner ' : '') + 'advice' + (a.warn ? ' warn' : '');
+    box.innerHTML = '';
+    const t = document.createElement('div');
+    t.className = 'advice-title'; t.textContent = a.title;
+    box.appendChild(t);
+    if (a.steps) {
+      const ol = document.createElement('ol');
+      for (const s of a.steps) { const li = document.createElement('li'); li.textContent = s; ol.appendChild(li); }
+      box.appendChild(ol);
     }
+    const acts = (a.actions || []).slice();
+    if (inBanner && a.dismiss) acts.push({ label: 'Скрыть', run: () => { hideAdvice(a.dismiss); updateNotifUI(); } });
+    if (!acts.length) return;
+    const row = document.createElement('div');
+    row.className = 'row';
+    for (const act of acts) {
+      const el = document.createElement(act.href ? 'a' : 'button');
+      el.className = 'btn' + (act.primary ? ' primary' : '');
+      el.textContent = act.label;
+      if (act.href) el.href = act.href; else { el.type = 'button'; el.onclick = act.run; }
+      row.appendChild(el);
+    }
+    box.appendChild(row);
+  }
+
+  function updateNotifUI() {
+    const a = advice();
+    const banner = $('#notifBanner'), box = $('#notifAdvice');
+    const showBanner = !!a && !(a.dismiss && load(LS_HIDDEN, {})[a.dismiss]) && !(a.needEvents && !live().length);
+    banner.hidden = !showBanner;
+    if (showBanner) renderAdvice(banner, a, true);
+
+    const usable = hasNotif() && inAppName() === null && !(isIOS() && !isStandalone());
+    const p = usable ? Notification.permission : null;
+    $('#btnNotifEnable').hidden = p !== 'default';
+    $('#btnNotifTest').hidden = p !== 'granted';
+    $('#notifStatus').textContent =
+      p === 'granted' ? (settings.pushOn
+        ? 'Включены. Напоминания приходят каждое утро, даже если приложение закрыто.'
+        : 'Включены. Напоминания приходят, когда приложение открывают, и время от времени в фоне.')
+      : p === 'default' ? 'Выключены.' : '';
+    const showBox = !!a && p !== 'default';
+    box.hidden = !showBox;
+    if (showBox) renderAdvice(box, a, false);
   }
 
   function maybeAskNotifications() {
-    if (hasNotif() && Notification.permission === 'default') updateNotifUI();
+    updateNotifUI();
   }
 
   async function enableNotifications() {
     if (!hasNotif()) return updateNotifUI();
     const p = await Notification.requestPermission();
-    store(LS_BANNER, true);
     if (p === 'granted') {
       await registerPeriodic();
       if (settings.vapid && settings.repo && settings.token) pushSubscribe(true);
@@ -540,7 +667,6 @@
       settings.scale = Number(b.dataset.scale); saveSettings(); applyScale();
     };
     $('#btnNotifEnable').onclick = enableNotifications;
-    $('#btnBannerEnable').onclick = enableNotifications;
     $('#btnNotifTest').onclick = testNotification;
     $('#btnExport').onclick = exportFile;
     $('#btnImport').onclick = () => $('#importFile').click();
@@ -559,10 +685,18 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible') return;
       render(); // дата могла смениться
+      updateNotifUI(); // разрешение могли поменять в настройках телефона
       checkNow();
       scheduleSync();
     });
     window.addEventListener('online', () => scheduleSync());
+    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; updateNotifUI(); });
+    window.addEventListener('appinstalled', () => { installPrompt = null; updateNotifUI(); });
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'notifications' })
+        .then(s => { s.onchange = () => { updateNotifUI(); if (s.state === 'granted') { registerPeriodic(); checkNow(); } }; })
+        .catch(() => {});
+    }
   }
 
   // ---------- service worker ----------
