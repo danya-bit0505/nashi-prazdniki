@@ -1,5 +1,5 @@
 /* Наши праздники — service worker: офлайн (cache-first), напоминания (push + periodic sync). */
-const CACHE_NAME = 'prazdniki-v1.0.0';
+const CACHE_NAME = 'prazdniki-v1.1.0';
 const DATA_CACHE = 'prazdniki-data'; // данные и отметки показанных напоминаний — не чистить
 
 const ASSETS = [
